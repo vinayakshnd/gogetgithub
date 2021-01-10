@@ -9,9 +9,13 @@ import (
 	"github.com/vinayakshnd/gogetgithub/utils"
 )
 
+const (
+	httpLoginPage = `<a href="/login/github/">LOGIN</a>`
+)
+
 // RootHandler handles `/` request
 func RootHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, `<a href="/login/github/">LOGIN</a>`)
+	fmt.Fprintf(w, httpLoginPage)
 }
 
 // GithubLoginHandler handles login request `/login/github/`
