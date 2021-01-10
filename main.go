@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"github.com/joho/godotenv"
 	"github.com/vinayakshnd/gogetgithub/httphandlers"
-	"github.com/vinayakshnd/gogetgithub/utils"
 )
 
 // init() executes before the main program
