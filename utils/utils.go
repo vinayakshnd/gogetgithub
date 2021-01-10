@@ -10,11 +10,15 @@ import (
 	"os"
 )
 
+const (
+	clientIDEnvVar = "CLIENT_ID"
+	clientSecretEnvVar = "CLIENT_SECRET"
+)
 // GetGithubClientID returns Github OAuth app client ID 
 // from set environment variable CLIENT_ID
 func GetGithubClientID() string {
 
-	githubClientID, exists := os.LookupEnv("CLIENT_ID")
+	githubClientID, exists := os.LookupEnv(clientIDEnvVar)
 	if !exists {
 		log.Fatal("Github Client ID not defined in .env file")
 	}
@@ -26,9 +30,9 @@ func GetGithubClientID() string {
 // from set environment variable CLIENT_SECRET
 func GetGithubClientSecret() string {
 
-	githubClientSecret, exists := os.LookupEnv("CLIENT_SECRET")
+	githubClientSecret, exists := os.LookupEnv(clientSecretEnvVar)
 	if !exists {
-		log.Fatal("Github Client ID not defined in .env file")
+		log.Fatal("Github Client Secret not defined in .env file")
 	}
 
 	return githubClientSecret
