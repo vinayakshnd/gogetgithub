@@ -1,12 +1,10 @@
 package httphandlers
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
+	"time"
 
 	"github.com/google/go-github/github"
 	"github.com/vinayakshnd/gogetgithub/utils"
@@ -20,7 +18,7 @@ const (
 	githubFileName     = "myNewFile.md"
 	githubUserFullName = "Vinayak Shinde"
 	githubUserEmailID  = "vinayakshnd@gmail.com"
-	githubBranch       = "main"
+	githubBranchPrefix = "main"
 )
 
 // RootHandler handles `/` request
@@ -58,7 +56,6 @@ func LoggedinHandler(w http.ResponseWriter, r *http.Request, githubAccessToken s
 		return
 	}
 
-	githubData := utils.GetGithubData(githubAccessToken)
 	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: githubAccessToken},
@@ -66,13 +63,24 @@ func LoggedinHandler(w http.ResponseWriter, r *http.Request, githubAccessToken s
 	oauthClient := oauth2.NewClient(ctx, ts)
 	ghClient := github.NewClient(oauthClient)
 
-	// Get file SHA
-	fileSHA, err := utils.GetFileBlobSHA(ghClient, githubBranch, githubUser, githubRepoName, githubFileName)
+	githubBranch := fmt.Sprintf("%s_%d", githubBranchPrefix, time.Now().Unix())
+
+	// 1. Create new branch
+	err := utils.CreateNewBranch(ghClient, githubBranch, githubUser, githubRepoName)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
+	// 2. Get blob SHA of file to be updated
+	fileSHA, err := utils.GetFileBlobSHA(ghClient, githubBranch, githubUser,
+		githubRepoName, githubFileName)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// 3. Update the file and make a commit
 	err = utils.UpdateFile(ghClient, githubBranch, fileSHA, githubUserFullName,
 		githubUserEmailID, githubUser, githubRepoName, githubFileName)
 	if err != nil {
@@ -80,19 +88,17 @@ func LoggedinHandler(w http.ResponseWriter, r *http.Request, githubAccessToken s
 		return
 	}
 
-	w.Header().Set("Content-type", "application/json")
-
-	// Prettifying the json
-	var prettyJSON bytes.Buffer
-	// json.indent is a library utility function to prettify JSON indentation
-	parserr := json.Indent(&prettyJSON, []byte(githubData), "", "\t")
-	if parserr != nil {
-		log.Panic("JSON parse error")
+	// 4. Create Pull Request
+	prURL, err := utils.CreateNewPullRequest(ghClient, githubBranch, githubUser, githubRepoName)
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
 
-	// Return the prettified JSON as a string
-	fmt.Fprintf(w, fmt.Sprintf("Successfully updated %s file in https://github.com/%s/%s repository!!!\n"+
-		"With below Github user:\n\n\n",
-		githubFileName, githubUser, githubRepoName))
-	fmt.Fprintf(w, string(prettyJSON.Bytes()))
+	// 5. Display Success message
+	err = utils.DisplaySuccess(w, githubAccessToken, prURL)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 }
