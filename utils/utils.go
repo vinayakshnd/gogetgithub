@@ -2,12 +2,16 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"time"
+
+	"github.com/google/go-github/github"
 )
 
 const (
@@ -72,7 +76,6 @@ func GetGithubAccessToken(code string) string {
 	var ghresp githubAccessTokenResponse
 	json.Unmarshal(respbody, &ghresp)
 
-	fmt.Printf("The scope of access toke is : %s and token type is %s ", ghresp.Scope, ghresp.TokenType)
 	return ghresp.AccessToken
 }
 
@@ -94,4 +97,57 @@ func GetGithubData(accessToken string) string {
 	respbody, _ := ioutil.ReadAll(resp.Body)
 
 	return string(respbody)
+}
+
+// GetFileBlobSHA returns SHA of given file from given branch
+func GetFileBlobSHA(ghClient *github.Client,
+	githubBranch string,
+	githubUser string,
+	githubRepoName string,
+	githubFileName string) (string, error) {
+
+	repoContentGetOptions := &github.RepositoryContentGetOptions{
+		Ref: githubBranch,
+	}
+
+	fContent, _, _, err := ghClient.Repositories.GetContents(context.Background(), githubUser,
+		githubRepoName, githubFileName, repoContentGetOptions)
+
+	if err != nil {
+		return "", err
+	}
+	return fContent.GetSHA(), nil
+}
+
+// UpdateFile updates given file in specified repository
+func UpdateFile(ghClient *github.Client,
+	githubBranch string,
+	fileSHA string,
+	githubUserFullName string,
+	githubUserEmailID string,
+	githubUser string,
+	githubRepoName string,
+	githubFileName string) error {
+
+	fileContent := []byte(fmt.Sprintf("This is the content of my file. File updated at %s",
+		time.Now().Format(time.RFC1123)))
+
+	opts := &github.RepositoryContentFileOptions{
+		Message: github.String("This is my commit message"),
+		Content: fileContent,
+		Branch:  github.String(githubBranch),
+		SHA:     github.String(fileSHA),
+		Committer: &github.CommitAuthor{
+			Name:  github.String(githubUserFullName),
+			Email: github.String(githubUserEmailID),
+		},
+	}
+
+	// Create or update file file
+	_, _, err := ghClient.Repositories.CreateFile(context.Background(), githubUser,
+		githubRepoName, githubFileName, opts)
+	if err != nil {
+		return err
+	}
+	return nil
 }
