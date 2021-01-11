@@ -80,7 +80,7 @@ func GetGithubAccessToken(code string) string {
 }
 
 // GetGithubData returns Github user data of autorized user
-func GetGithubData(accessToken string) string {
+func GetGithubData(accessToken string) (string, error) {
 	req, reqerr := http.NewRequest("GET", "https://api.github.com/user", nil)
 	if reqerr != nil {
 		log.Panic("API Request creation failed")
@@ -91,12 +91,64 @@ func GetGithubData(accessToken string) string {
 
 	resp, resperr := http.DefaultClient.Do(req)
 	if resperr != nil {
-		log.Panic("Request failed")
+		return "", resperr
 	}
 
 	respbody, _ := ioutil.ReadAll(resp.Body)
 
-	return string(respbody)
+	return string(respbody), nil
+}
+
+// CreateNewBranch creates a new branch from main branch
+func CreateNewBranch(ghClient *github.Client,
+	githubBranch string,
+	githubUser string,
+	githubRepoName string) error {
+
+	// Get Commit SHA of tip of master branch
+	ref, _, err := ghClient.Git.GetRef(context.Background(), githubUser, githubRepoName, "heads/main")
+	if err != nil {
+		return err
+	}
+
+	ref = &github.Reference{
+		Ref: github.String(fmt.Sprintf("heads/%s", githubBranch)),
+		Object: &github.GitObject{
+			Type: github.String("commit"),
+			SHA:  ref.Object.SHA,
+		},
+	}
+
+	// Create a new branch from main branch
+	branch, _, err := ghClient.Git.CreateRef(context.Background(), githubUser, githubRepoName, ref)
+	if err != nil {
+		return err
+	}
+	log.Printf("Created new branch ref: [%s]\n", branch.GetRef())
+	return nil
+}
+
+// CreateNewPullRequest creates a new pull request from
+// specified `githubBranch` to `main` branch
+func CreateNewPullRequest(ghClient *github.Client,
+	githubBranch string,
+	githubUser string,
+	githubRepoName string) (string, error) {
+
+	pr := &github.NewPullRequest{
+		Title: github.String(fmt.Sprintf("Pull request from gogetgithub at %s",
+			time.Now().Format(time.RFC1123))),
+		Head:                github.String(githubBranch),
+		Base:                github.String("main"),
+		Body:                github.String("This is pull request raised by gogetgithub app."),
+		MaintainerCanModify: github.Bool(true),
+	}
+	createdPR, _, err := ghClient.PullRequests.Create(context.Background(), githubUser, githubRepoName, pr)
+	if err != nil {
+		return "", err
+	}
+	log.Printf("Created new PR: [%s]\n", createdPR.GetHTMLURL())
+	return *createdPR.HTMLURL, nil
 }
 
 // GetFileBlobSHA returns SHA of given file from given branch
@@ -129,11 +181,11 @@ func UpdateFile(ghClient *github.Client,
 	githubRepoName string,
 	githubFileName string) error {
 
-	fileContent := []byte(fmt.Sprintf("This is the content of my file. File updated at %s",
-		time.Now().Format(time.RFC1123)))
+	timestamp := time.Now().Format(time.RFC1123)
+	fileContent := []byte(fmt.Sprintf("This is the content of my file. File updated at %s", timestamp))
 
 	opts := &github.RepositoryContentFileOptions{
-		Message: github.String("This is my commit message"),
+		Message: github.String(fmt.Sprintf("Commit from gogetgithub at %s", timestamp)),
 		Content: fileContent,
 		Branch:  github.String(githubBranch),
 		SHA:     github.String(fileSHA),
@@ -144,10 +196,34 @@ func UpdateFile(ghClient *github.Client,
 	}
 
 	// Create or update file file
-	_, _, err := ghClient.Repositories.CreateFile(context.Background(), githubUser,
+	contentCreateResp, _, err := ghClient.Repositories.CreateFile(context.Background(), githubUser,
 		githubRepoName, githubFileName, opts)
 	if err != nil {
 		return err
 	}
+	log.Printf("Created commit: [%s]\n", *contentCreateResp.Commit.Message)
+	return nil
+}
+
+// DisplaySuccess function displays success message
+func DisplaySuccess(w http.ResponseWriter, githubAccessToken string, prURL string) error {
+
+	w.Header().Set("Content-type", "text/html")
+	// Prettifying the json
+	var prettyJSON bytes.Buffer
+	githubData, err := GetGithubData(githubAccessToken)
+	if err != nil {
+		return err
+	}
+	// json.indent is a library utility function to prettify JSON indentation
+	parserr := json.Indent(&prettyJSON, []byte(githubData), "", "\t")
+	if parserr != nil {
+		log.Panic("JSON parse error")
+	}
+
+	// Return the prettified JSON as a string
+	fmt.Fprintf(w, fmt.Sprintf("\n\nSuccessfully created PR available <a href=\"%s\">here</a>!!!\n\n"+
+		"With below Github user:\n\n\n", prURL))
+	fmt.Fprintf(w, string(prettyJSON.Bytes()))
 	return nil
 }
