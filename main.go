@@ -4,17 +4,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"github.com/joho/godotenv"
+
 	"github.com/vinayakshnd/gogetgithub/httphandlers"
 )
-
-// init() executes before the main program
-func init() {
-	// loads values from .env into the system
-	if err := godotenv.Load("githubapp.env"); err != nil {
-		log.Fatal("No .env file found")
-	}
-}
 
 func main() {
 
@@ -39,7 +31,3 @@ func main() {
 		http.ListenAndServe(":8080", nil),
 	)
 }
-
-
-
-

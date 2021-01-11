@@ -11,10 +11,11 @@ import (
 )
 
 const (
-	clientIDEnvVar = "CLIENT_ID"
+	clientIDEnvVar     = "CLIENT_ID"
 	clientSecretEnvVar = "CLIENT_SECRET"
 )
-// GetGithubClientID returns Github OAuth app client ID 
+
+// GetGithubClientID returns Github OAuth app client ID
 // from set environment variable CLIENT_ID
 func GetGithubClientID() string {
 
@@ -71,6 +72,7 @@ func GetGithubAccessToken(code string) string {
 	var ghresp githubAccessTokenResponse
 	json.Unmarshal(respbody, &ghresp)
 
+	fmt.Printf("The scope of access toke is : %s and token type is %s ", ghresp.Scope, ghresp.TokenType)
 	return ghresp.AccessToken
 }
 
